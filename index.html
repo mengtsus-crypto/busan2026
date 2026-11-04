@@ -141,10 +141,13 @@ function strip(html){ const d = document.createElement('div'); d.innerHTML = htm
 function normalize(data){
   const out = []; let h = null, n = 0;
   (data.layers || []).forEach(L => (L.places || []).forEach(p => {
-    const desc = strip(p.desc), isUrl = /^https?:\/\//.test(desc);
-    const m = isUrl ? null : desc.match(/[가-힣][가-힣0-9·\-\s]*[가-힣0-9]/);
+    const desc = strip(p.desc);
+    const gm = desc.match(/https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|(www\.)?google\.[a-z.]+\/maps)\S*/i);
+    const plain = desc.replace(/https?:\/\/\S+/g, ' ');
+    const m = plain.match(/[가-힣][가-힣0-9·\-\s]*[가-힣0-9]/);
     const item = { name:p.name, layer:L.name, lat:+p.lat, lng:+p.lng,
       ko: m ? m[0].trim() : (KO[p.name] || ''),
+      gmap: gm ? gm[0] : '',
       food: /1577/.test(p.style || '') };
     if (/hotel|hotal|飯店|住宿/i.test(L.name) && !h) { h = item; return; }
     item.no = ++n; item.id = 'p' + n; out.push(item);
@@ -157,7 +160,12 @@ function uberUrl(p){
     + '&dropoff[latitude]=' + p.lat + '&dropoff[longitude]=' + p.lng
     + '&dropoff[nickname]=' + encodeURIComponent(p.ko || p.name);
 }
-function gmapUrl(p){ return 'https://www.google.com/maps/search/?api=1&query=' + p.lat + ',' + p.lng; }
+/* Google 地圖：說明欄有 Google 地圖分享連結就用它（最準）；否則用店名搜尋，開啟店家資訊頁 */
+function gmapUrl(p){
+  if (p.gmap) return p.gmap;
+  const q = p.ko ? p.ko + ' 부산' : p.name + ' Busan';
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+}
 function km(a, b){
   const R = 6371, r = x => x * Math.PI / 180, dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
   const s = Math.sin(dLat/2)**2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng/2)**2;
