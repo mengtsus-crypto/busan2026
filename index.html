@@ -24,7 +24,7 @@
   --sea:#6CB8DA; --sea-soft:#163644; --food:#F08A5A; --food-soft:#3A2218;
   --uber:#FFFFFF; --uber-ink:#111111; color-scheme:dark;}}
 *{box-sizing:border-box}
-  [hidden]{display:none!important}
+[hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--tc);font-size:18px;line-height:1.5;-webkit-text-size-adjust:100%}
 button,input{font:inherit;color:inherit}
@@ -283,6 +283,29 @@ function fmt(iso){ const t = new Date(iso); return isNaN(t) ? '' : `${t.getMonth
 let cached = null;
 try { cached = JSON.parse(localStorage.getItem('busanData') || 'null'); } catch (e) {}
 apply(cached || SEED, cached ? `更新於 ${fmt(cached.updated)}` : '內建資料');
+
+/* 沒設定 SYNC_URL 時：讀取同資料夾的 places.kml（從 My Maps 匯出後上傳到 GitHub 即可更新） */
+function kmlToData(text){
+  const x = new DOMParser().parseFromString(text, 'application/xml');
+  const kids = (el, tag) => Array.from(el.children).filter(c => c.localName === tag);
+  const txt = (el, tag) => { const c = kids(el, tag)[0]; return c ? c.textContent.trim() : ''; };
+  const pms = el => kids(el, 'Placemark').filter(p => p.getElementsByTagNameNS('*', 'coordinates').length).map(p => {
+    const c = p.getElementsByTagNameNS('*', 'coordinates')[0].textContent.trim().split(',');
+    return { name: txt(p, 'name'), desc: txt(p, 'description'), style: txt(p, 'styleUrl'), lng: +c[0], lat: +c[1] };
+  });
+  const doc = x.getElementsByTagNameNS('*', 'Document')[0];
+  if (!doc) throw 0;
+  const layers = kids(doc, 'Folder').map(f => ({ name: txt(f, 'name'), places: pms(f) }));
+  const loose = pms(doc); if (loose.length) layers.push({ name: '其他', places: loose });
+  return { title: txt(doc, 'name'), updated: new Date().toISOString(), layers };
+}
+if (!SYNC_URL) {
+  fetch('places.kml', { cache: 'no-cache' }).then(r => { if (!r.ok) throw 0; return r.text(); }).then(t => {
+    const data = kmlToData(t);
+    try { localStorage.setItem('busanData', JSON.stringify(data)); } catch (e) {}
+    apply(data, '已載入最新地點');
+  }).catch(() => {});
+}
 
 if (SYNC_URL) {
   $('#sync').textContent = '同步中…';
