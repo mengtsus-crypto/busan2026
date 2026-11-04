@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="釜山叫車">
+<meta name="theme-color" content="#0E4F6E">
+<title>釜山叫車小幫手</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+KR:wght@500;700&display=swap">
+<style>
+/* 版面：上方固定標題列＋回飯店按鈕，中段地圖，下方大字卡片清單 */
+:root{
+  --bg:#F3F6F7; --card:#FFFFFF; --ink:#14232B; --muted:#51646E; --line:#D5DEE2;
+  --sea:#0E4F6E; --sea-soft:#DCEBF2; --food:#C2501C; --food-soft:#FBE6DA;
+  --uber:#111111; --uber-ink:#FFFFFF; --focus:#F2A93B;
+  --tc:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --kr:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0C1418; --card:#15222A; --ink:#EAF1F4; --muted:#A3B5BE; --line:#2A3B44;
+  --sea:#6CB8DA; --sea-soft:#163644; --food:#F08A5A; --food-soft:#3A2218;
+  --uber:#FFFFFF; --uber-ink:#111111; color-scheme:dark;}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--tc);font-size:18px;line-height:1.5;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+
+header{position:sticky;top:0;z-index:1000;background:var(--sea);color:#fff;padding-top:env(safe-area-inset-top)}
+header .wrap{display:flex;flex-direction:column;gap:10px;padding-block:12px}
+.toprow{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.02em}
+.sync{font-size:13px;opacity:.85;white-space:nowrap}
+.home{display:grid;grid-template-columns:1fr auto;gap:8px}
+.home button{border:0;border-radius:14px;min-height:56px;font-size:20px;font-weight:700}
+.home .go{background:#fff;color:#0E4F6E}
+.home .ko{background:rgba(255,255,255,.18);color:#fff;padding:0 16px;font-size:16px;font-weight:500}
+
+#map{height:42vh;min-height:260px;max-height:420px;border-bottom:1px solid var(--line);background:var(--sea-soft)}
+.maptools{display:flex;gap:8px;padding-block:10px;flex-wrap:wrap}
+.pill{border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:8px 16px;font-size:17px;min-height:44px}
+.pill[aria-pressed="true"]{background:var(--sea);border-color:var(--sea);color:#fff}
+@media (prefers-color-scheme: dark){.pill[aria-pressed="true"]{color:#0C1418}}
+
+.search{width:100%;height:54px;border:1.5px solid var(--line);border-radius:14px;background:var(--card);padding:0 16px;font-size:19px}
+.days{display:flex;gap:8px;overflow-x:auto;padding:10px 0 4px;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.days .pill{white-space:nowrap;flex:none}
+
+#list{display:flex;flex-direction:column;gap:12px;padding-block:8px 40px}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px;scroll-margin-top:170px;transition:border-color .3s}
+.card.hl{border-color:var(--focus);border-width:3px}
+.head{display:flex;gap:12px;align-items:flex-start}
+.num{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:17px;color:#fff;background:var(--sea)}
+.food .num{background:var(--food)}
+.name{margin:0;font-size:21px;font-weight:700;line-height:1.35}
+.meta{margin:2px 0 0;color:var(--muted);font-size:15px}
+.meta .kr{font-family:var(--kr)}
+.dist{display:inline-block;margin-top:4px;font-size:15px;font-weight:500;color:var(--sea);background:var(--sea-soft);border-radius:8px;padding:1px 8px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:58px;border-radius:14px;font-size:20px;font-weight:700;text-decoration:none;border:0}
+.btn.uber{background:var(--uber);color:var(--uber-ink)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn.sub{min-height:50px;font-size:17px;font-weight:500;background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.empty{text-align:center;color:var(--muted);padding:32px 0}
+.note{font-size:14px;color:var(--muted);text-align:center;padding-bottom:24px}
+
+#driver{position:fixed;inset:0;z-index:3000;background:#FFFDF6;color:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:calc(24px + env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+#driver .ask{font-family:var(--kr);font-size:22px;color:#555;margin:0}
+#driver .big{font-family:var(--kr);font-size:clamp(34px,11vw,60px);font-weight:700;line-height:1.25;margin:0;word-break:keep-all}
+#driver .zh{font-size:20px;color:#555;margin:0}
+#driver button{margin-top:18px;min-height:56px;padding:0 40px;border-radius:14px;border:2px solid #111;background:#fff;font-size:20px;font-weight:700;color:#111}
+
+.leaflet-popup-content{font-family:var(--tc);font-size:16px;margin:12px 14px}
+.pop b{display:block;font-size:17px;margin-bottom:8px}
+.pop a{display:block;text-align:center;background:#111;color:#fff!important;border-radius:10px;padding:10px;text-decoration:none;font-weight:700;margin-bottom:6px}
+.pop button{width:100%;border:1px solid #ccc;background:#fff;border-radius:10px;padding:8px;color:#111}
+.pin{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.pin span{transform:rotate(45deg);color:#fff;font:700 13px var(--tc)}
+.me{width:20px;height:20px;border-radius:50%;background:#1A73E8;border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,115,232,.25)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="toprow"><h1 id="title">釜山叫車小幫手</h1><span class="sync" id="sync"></span></div>
+    <div class="home">
+      <button class="go" id="homeUber" type="button">🏨 叫 Uber 回飯店</button>
+      <button class="ko" id="homeKo" type="button">飯店韓文</button>
+    </div>
+  </div>
+</header>
+
+<div id="map" role="region" aria-label="景點地圖"></div>
+
+<main class="wrap">
+  <div class="maptools">
+    <button class="pill" id="locBtn" type="button" aria-pressed="false">📍 顯示我的位置</button>
+    <button class="pill" id="nearBtn" type="button" aria-pressed="false">離我最近排前面</button>
+  </div>
+  <input class="search" id="q" type="search" placeholder="搜尋地點，例如：市場、海雲台" autocomplete="off">
+  <div class="days" id="days" role="toolbar" aria-label="依天數篩選"></div>
+  <div id="list"></div>
+  <p class="note">叫 Uber 時上車地點＝你現在的位置。走路超過 15 分鐘，就叫車吧！</p>
+</main>
+
+<div id="driver" hidden>
+  <p class="ask">여기로 가 주세요</p>
+  <p class="big" id="dKo"></p>
+  <p class="zh" id="dZh"></p>
+  <button type="button" id="dClose">返回</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ===== 設定：貼上 Apps Script 網址後即自動同步 My Maps ===== */
+const SYNC_URL = 'https://script.google.com/macros/s/AKfycbzP86AW-FyPvHx_iCeOP4l2DJ1UHImPU_Oq5wARwJW2u_cWehhazOgJsCJxxu09iovlfw/exec';
+/* =========================================================== */
+
+const SEED = {"title": "2026釜山五日", "updated": "", "layers": [{"name": "HOTAL", "places": [{"name": "Magnum Nampo Hotel", "desc": "https://m.uber.com/ul/?action=setPickup&pickup=my_location&dropoff[latitude]=35.1587&dropoff[longitude]=129.1604&dropoff[nickname]=Haeundae", "style": "#icon-1602-000000", "lat": 35.098288, "lng": 129.027231}]}, {"name": "DAY 1 西面", "places": [{"name": "世界村馬鈴薯排骨湯", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.152943, "lng": 129.0588293}]}, {"name": "DAY 2", "places": [{"name": "BIFF 廣場", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.098243, "lng": 129.029212}, {"name": "國際市場", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1013575, "lng": 129.0281978}, {"name": "富平罐頭市場", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.101854, "lng": 129.0258719}, {"name": "光復路時尚街", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0993125, "lng": 129.0314375}, {"name": "龍頭山公園", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1006536, "lng": 129.0326226}, {"name": "釜山塔", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1011913, "lng": 129.0323697}, {"name": "札嘎其市場", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0966339, "lng": 129.0307965}]}, {"name": "DAY 3 影島", "places": [{"name": "ARTE MUSEUM Busan", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0870682, "lng": 129.076373}, {"name": "影島海女村", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0672442, "lng": 129.0660829}, {"name": "白淺灘文化村", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0782798, "lng": 129.0453198}, {"name": "Songdo Bay Station (Songdo Cable Car)", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0763876, "lng": 129.0236199}, {"name": "岩南公園", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0608778, "lng": 129.0161047}]}, {"name": "DAY 4 海雲台/廣安里", "places": [{"name": "海雲臺", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1639612, "lng": 129.1585317}, {"name": "海雲台醬蟹料理", "desc": "신사꽂게당 해운대점Haeundae Marinated Crab – Korean Gejang Restaurant", "style": "#icon-1577-E65100", "lat": 35.1597081, "lng": 129.1595155}, {"name": "青沙浦雙胞胎燈塔", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1593442, "lng": 129.1915503}, {"name": "尾浦", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1592786, "lng": 129.1699201}, {"name": "尾浦-老虎冰淇淋大福", "desc": "", "style": "#icon-1577-E65100-nodesc", "lat": 35.15849, "lng": 129.1711889}, {"name": "尾浦-大海鮑魚粥", "desc": "바다마루전복죽 부산역 직영점", "style": "#icon-1577-E65100", "lat": 35.1605788, "lng": 129.171241}, {"name": "廣安裏海灘", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1531696, "lng": 129.118666}, {"name": "廣安里-咖啡廳 Ancien 明太子麵包", "desc": "광안리 카페 앙시앙", "style": "#icon-1577-E65100", "lat": 35.1491827, "lng": 129.1135313}]}]};
+
+/* My Maps 說明欄沒寫韓文時，用這份對照表（可在 My Maps 說明欄寫韓文覆蓋） */
+const KO = {
+  'Magnum Nampo Hotel':'매그넘 남포 호텔','BIFF 廣場':'비프광장','國際市場':'국제시장','富平罐頭市場':'부평깡통시장',
+  '光復路時尚街':'광복로 패션거리','龍頭山公園':'용두산공원','釜山塔':'부산타워','札嘎其市場':'자갈치시장',
+  'ARTE MUSEUM Busan':'아르떼뮤지엄 부산','白淺灘文化村':'흰여울문화마을','Songdo Bay Station (Songdo Cable Car)':'송도해상케이블카 송도베이스테이션',
+  '岩南公園':'암남공원','海雲臺':'해운대해수욕장','青沙浦雙胞胎燈塔':'청사포 쌍둥이 등대','尾浦':'미포','廣安裏海灘':'광안리해수욕장'
+};
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let places = [], hotel = null, day = '全部', me = null, nearFirst = false, markers = {}, meMarker = null, watchId = null;
+
+function strip(html){ const d = document.createElement('div'); d.innerHTML = html || ''; return d.textContent.trim(); }
+function normalize(data){
+  const out = []; let h = null, n = 0;
+  (data.layers || []).forEach(L => (L.places || []).forEach(p => {
+    const desc = strip(p.desc), isUrl = /^https?:\/\//.test(desc);
+    const m = isUrl ? null : desc.match(/[가-힣][가-힣0-9·\-\s]*[가-힣0-9]/);
+    const item = { name:p.name, layer:L.name, lat:+p.lat, lng:+p.lng,
+      ko: m ? m[0].trim() : (KO[p.name] || ''),
+      food: /1577/.test(p.style || '') };
+    if (/hotel|hotal|飯店|住宿/i.test(L.name) && !h) { h = item; return; }
+    item.no = ++n; item.id = 'p' + n; out.push(item);
+  }));
+  return { title: data.title, list: out, hotel: h };
+}
+
+function uberUrl(p){
+  return 'https://m.uber.com/ul/?action=setPickup&pickup=my_location'
+    + '&dropoff[latitude]=' + p.lat + '&dropoff[longitude]=' + p.lng
+    + '&dropoff[nickname]=' + encodeURIComponent(p.ko || p.name);
+}
+function gmapUrl(p){ return 'https://www.google.com/maps/search/?api=1&query=' + p.lat + ',' + p.lng; }
+function km(a, b){
+  const R = 6371, r = x => x * Math.PI / 180, dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
+  const s = Math.sin(dLat/2)**2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+function distText(p){
+  if (!me) return '';
+  const d = km(me, p), walk = Math.round(d * 1.3 / 4.5 * 60);
+  return d < 1 ? `約 ${Math.round(d*1000/10)*10} 公尺・走路約 ${Math.max(1,walk)} 分` : `約 ${d.toFixed(1)} 公里${walk <= 25 ? `・走路約 ${walk} 分` : ''}`;
+}
+
+/* ---------- 地圖 ---------- */
+const map = L.map('map', { zoomControl:true, tap:true }).setView([35.12, 129.07], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(map);
+const pinIcon = (txt, color) => L.divIcon({ className:'', iconSize:[30,30], iconAnchor:[15,30], popupAnchor:[0,-28],
+  html:`<div class="pin" style="background:${color}"><span>${txt}</span></div>` });
+
+function drawMarkers(){
+  Object.values(markers).forEach(m => map.removeLayer(m)); markers = {};
+  const cs = getComputedStyle(document.documentElement);
+  const sea = '#0E4F6E', food = '#C2501C';
+  if (hotel) markers.hotel = L.marker([hotel.lat, hotel.lng], { icon: pinIcon('宿', '#111'), zIndexOffset:1000 })
+    .bindPopup(popHtml(hotel, true)).addTo(map);
+  visible().forEach(p => {
+    markers[p.id] = L.marker([p.lat, p.lng], { icon: pinIcon(p.no, p.food ? food : sea) })
+      .bindPopup(popHtml(p)).addTo(map);
+  });
+  const pts = Object.values(markers).map(m => m.getLatLng());
+  if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding:[30,30], maxZoom:16 });
+}
+function popHtml(p, isHotel){
+  return `<div class="pop"><b>${isHotel ? '🏨 ' : p.no + '. '}${esc(p.name)}</b>
+    <a href="${uberUrl(p)}" target="_blank" rel="noopener">叫 Uber 去這裡</a>
+    ${isHotel ? '' : `<button type="button" onclick="showCard('${p.id}')">看詳細</button>`}</div>`;
+}
+window.showCard = id => {
+  map.closePopup();
+  const el = document.getElementById(id); if (!el) return;
+  el.scrollIntoView({ behavior:'smooth', block:'start' });
+  el.classList.add('hl'); setTimeout(() => el.classList.remove('hl'), 2000);
+};
+
+/* ---------- 清單 ---------- */
+function visible(){
+  const q = $('#q').value.trim().toLowerCase();
+  let L = places.filter(p => (day === '全部' || p.layer === day)
+    && (!q || (p.name + p.ko + p.layer).toLowerCase().includes(q)));
+  if (nearFirst && me) L = L.slice().sort((a, b) => km(me, a) - km(me, b));
+  return L;
+}
+function renderDays(){
+  const ds = ['全部', ...new Set(places.map(p => p.layer))];
+  $('#days').innerHTML = ds.map(d => `<button class="pill" type="button" aria-pressed="${d === day}" data-d="${esc(d)}">${esc(d)}</button>`).join('');
+}
+function renderList(){
+  const L = visible();
+  $('#list').innerHTML = L.length ? L.map(p => `
+    <article class="card ${p.food ? 'food' : ''}" id="${p.id}">
+      <div class="head">
+        <span class="num">${p.no}</span>
+        <div>
+          <h2 class="name">${esc(p.name)}</h2>
+          <p class="meta">${p.ko ? `<span class="kr">${esc(p.ko)}</span>・` : ''}${esc(p.layer)}</p>
+          ${me ? `<span class="dist">${distText(p)}</span>` : ''}
+        </div>
+      </div>
+      <a class="btn uber" href="${uberUrl(p)}" target="_blank" rel="noopener">🚕 叫 Uber 去這裡</a>
+      <div class="row2">
+        <a class="btn sub" href="${gmapUrl(p)}" target="_blank" rel="noopener">Google 地圖</a>
+        <button class="btn sub" type="button" data-ko="${p.id}">給司機看韓文</button>
+      </div>
+    </article>`).join('') : '<p class="empty">找不到這個地點，換個字試試</p>';
+}
+function renderAll(){ renderDays(); renderList(); drawMarkers(); }
+
+/* ---------- 給司機看 ---------- */
+function showDriver(p){
+  $('#dKo').textContent = p.ko || p.name;
+  $('#dZh').textContent = p.ko ? p.name : '（沒有韓文名稱，請改用 Uber 或 Google 地圖給司機看）';
+  $('#driver').hidden = false;
+}
+$('#dClose').onclick = () => { $('#driver').hidden = true; };
+
+/* ---------- 事件 ---------- */
+$('#q').addEventListener('input', () => { renderList(); drawMarkers(); });
+$('#days').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; day = b.dataset.d; renderAll(); });
+$('#list').addEventListener('click', e => { const b = e.target.closest('[data-ko]'); if (b) showDriver(places.find(p => p.id === b.dataset.ko)); });
+$('#homeUber').onclick = () => { if (hotel) location.href = uberUrl(hotel); };
+$('#homeKo').onclick = () => { if (hotel) showDriver(hotel); };
+
+$('#locBtn').onclick = () => {
+  if (!navigator.geolocation) { alert('這支手機無法取得位置'); return; }
+  $('#locBtn').textContent = '📍 定位中…';
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  let first = true;
+  watchId = navigator.geolocation.watchPosition(pos => {
+    me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (!meMarker) meMarker = L.marker([me.lat, me.lng], { icon: L.divIcon({ className:'', html:'<div class="me"></div>', iconSize:[20,20], iconAnchor:[10,10] }), zIndexOffset:2000 }).addTo(map);
+    else meMarker.setLatLng([me.lat, me.lng]);
+    $('#locBtn').textContent = '📍 已顯示我的位置'; $('#locBtn').setAttribute('aria-pressed', 'true');
+    if (first) { map.setView([me.lat, me.lng], 15); first = false; }
+    renderList();
+  }, () => { $('#locBtn').textContent = '📍 顯示我的位置'; alert('無法取得位置，請到手機設定允許瀏覽器使用定位。'); },
+  { enableHighAccuracy:true, maximumAge:15000, timeout:20000 });
+};
+$('#nearBtn').onclick = () => {
+  if (!me) { $('#locBtn').click(); }
+  nearFirst = !nearFirst; $('#nearBtn').setAttribute('aria-pressed', String(nearFirst)); renderList();
+};
+
+/* ---------- 載入資料：先用內建/上次資料，再向 Apps Script 取最新 ---------- */
+function apply(data, label){
+  const d = normalize(data);
+  places = d.list; hotel = d.hotel;
+  if (d.title) { $('#title').textContent = d.title; document.title = d.title + '｜叫車'; }
+  $('#homeUber').disabled = !hotel; $('#homeKo').disabled = !hotel;
+  $('#sync').textContent = label;
+  if (!places.some(p => p.layer === day)) day = '全部';
+  renderAll();
+}
+function fmt(iso){ const t = new Date(iso); return isNaN(t) ? '' : `${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`; }
+
+let cached = null;
+try { cached = JSON.parse(localStorage.getItem('busanData') || 'null'); } catch (e) {}
+apply(cached || SEED, cached ? `更新於 ${fmt(cached.updated)}` : '內建資料');
+
+if (SYNC_URL) {
+  $('#sync').textContent = '同步中…';
+  fetch(SYNC_URL).then(r => r.json()).then(data => {
+    if (!data.layers) throw 0;
+    try { localStorage.setItem('busanData', JSON.stringify(data)); } catch (e) {}
+    apply(data, `已同步 ${fmt(data.updated)}`);
+  }).catch(() => { $('#sync').textContent = cached ? `離線・${fmt(cached.updated)}` : '離線・內建資料'; });
+}
+</script>
+</body>
+</html>
