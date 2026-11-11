@@ -16,13 +16,14 @@
   --bg:#F3F6F7; --card:#FFFFFF; --ink:#14232B; --muted:#51646E; --line:#D5DEE2;
   --sea:#0E4F6E; --sea-soft:#DCEBF2; --food:#C2501C; --food-soft:#FBE6DA;
   --uber:#111111; --uber-ink:#FFFFFF; --focus:#F2A93B;
+  --ok:#2E6B1F; --ok-soft:#E3F1D9; --warn:#8A4B06; --warn-soft:#FCEBCB;
   --tc:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
   --kr:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
 }
 @media (prefers-color-scheme: dark){:root{
   --bg:#0C1418; --card:#15222A; --ink:#EAF1F4; --muted:#A3B5BE; --line:#2A3B44;
   --sea:#6CB8DA; --sea-soft:#163644; --food:#F08A5A; --food-soft:#3A2218;
-  --uber:#FFFFFF; --uber-ink:#111111; color-scheme:dark;}}
+  --uber:#FFFFFF; --uber-ink:#111111; --ok:#A8DB8C; --ok-soft:#1E3318; --warn:#F5C77A; --warn-soft:#3A2A10; color-scheme:dark;}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
@@ -62,9 +63,18 @@ h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.02em}
 .name{margin:0;font-size:21px;font-weight:700;line-height:1.35}
 .meta{margin:2px 0 0;color:var(--muted);font-size:15px}
 .meta .kr{font-family:var(--kr)}
-.dist{display:inline-block;margin-top:4px;font-size:15px;font-weight:500;color:var(--sea);background:var(--sea-soft);border-radius:8px;padding:1px 8px}
+.trip{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;font-size:18px;font-weight:500;padding:8px 12px;border-radius:12px}
+.trip.walk{background:var(--ok-soft);color:var(--ok)}
+.trip.car{background:var(--warn-soft);color:var(--warn)}
+.trip.none{background:var(--sea-soft);color:var(--muted);font-size:15px;font-weight:400}
+.trip .tag{margin-left:auto;font-size:14px;border:1.5px solid currentColor;border-radius:999px;padding:0 10px}
+.trip small{font-size:14px;font-weight:400;opacity:.85}
+.more{background:none;border:0;color:var(--muted);font-size:15px;min-height:36px;margin-top:-4px}
+.locline{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--muted);min-height:44px}
+.locline button{margin-left:auto}
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:58px;border-radius:14px;font-size:20px;font-weight:700;text-decoration:none;border:0}
 .btn.uber{background:var(--uber);color:var(--uber-ink)}
+.btn.uber.soft{background:transparent;color:var(--ink);border:2px solid var(--ink)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .btn.sub{min-height:50px;font-size:17px;font-weight:500;background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .empty{text-align:center;color:var(--muted);padding:32px 0}
@@ -100,14 +110,14 @@ h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.02em}
 <div id="map" role="region" aria-label="景點地圖"></div>
 
 <main class="wrap">
+  <div class="locline"><span id="locMsg">📍 正在取得你的位置…</span><button class="pill" id="locBtn" type="button" hidden>重新定位</button></div>
   <div class="maptools">
-    <button class="pill" id="locBtn" type="button" aria-pressed="false">📍 顯示我的位置</button>
     <button class="pill" id="nearBtn" type="button" aria-pressed="false">離我最近排前面</button>
   </div>
   <input class="search" id="q" type="search" placeholder="搜尋地點，例如：市場、海雲台" autocomplete="off">
   <div class="days" id="days" role="toolbar" aria-label="依天數篩選"></div>
   <div id="list"></div>
-  <p class="note">叫 Uber 時上車地點＝你現在的位置。走路超過 15 分鐘，就叫車吧！</p>
+  <p class="note">路程時間依直線距離估算，僅供參考。叫 Uber 時上車地點＝你現在的位置。</p>
 </main>
 
 <div id="driver" hidden>
@@ -123,19 +133,21 @@ h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.02em}
 const SYNC_URL = 'https://script.google.com/macros/s/AKfycbzP86AW-FyPvHx_iCeOP4l2DJ1UHImPU_Oq5wARwJW2u_cWehhazOgJsCJxxu09iovlfw/exec';
 /* =========================================================== */
 
-const SEED = {"title": "2026釜山五日", "updated": "", "layers": [{"name": "HOTAL", "places": [{"name": "Magnum Nampo Hotel", "desc": "https://m.uber.com/ul/?action=setPickup&pickup=my_location&dropoff[latitude]=35.1587&dropoff[longitude]=129.1604&dropoff[nickname]=Haeundae", "style": "#icon-1602-000000", "lat": 35.098288, "lng": 129.027231}]}, {"name": "DAY 1 西面", "places": [{"name": "世界村馬鈴薯排骨湯", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.152943, "lng": 129.0588293}]}, {"name": "DAY 2", "places": [{"name": "BIFF 廣場", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.098243, "lng": 129.029212}, {"name": "國際市場", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1013575, "lng": 129.0281978}, {"name": "富平罐頭市場", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.101854, "lng": 129.0258719}, {"name": "光復路時尚街", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0993125, "lng": 129.0314375}, {"name": "龍頭山公園", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1006536, "lng": 129.0326226}, {"name": "釜山塔", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1011913, "lng": 129.0323697}, {"name": "札嘎其市場", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0966339, "lng": 129.0307965}]}, {"name": "DAY 3 影島", "places": [{"name": "ARTE MUSEUM Busan", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0870682, "lng": 129.076373}, {"name": "影島海女村", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0672442, "lng": 129.0660829}, {"name": "白淺灘文化村", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0782798, "lng": 129.0453198}, {"name": "Songdo Bay Station (Songdo Cable Car)", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0763876, "lng": 129.0236199}, {"name": "岩南公園", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.0608778, "lng": 129.0161047}]}, {"name": "DAY 4 海雲台/廣安里", "places": [{"name": "海雲臺", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1639612, "lng": 129.1585317}, {"name": "海雲台醬蟹料理", "desc": "신사꽂게당 해운대점Haeundae Marinated Crab – Korean Gejang Restaurant", "style": "#icon-1577-E65100", "lat": 35.1597081, "lng": 129.1595155}, {"name": "青沙浦雙胞胎燈塔", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1593442, "lng": 129.1915503}, {"name": "尾浦", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1592786, "lng": 129.1699201}, {"name": "尾浦-老虎冰淇淋大福", "desc": "", "style": "#icon-1577-E65100-nodesc", "lat": 35.15849, "lng": 129.1711889}, {"name": "尾浦-大海鮑魚粥", "desc": "바다마루전복죽 부산역 직영점", "style": "#icon-1577-E65100", "lat": 35.1605788, "lng": 129.171241}, {"name": "廣安裏海灘", "desc": "", "style": "#icon-1899-0288D1-nodesc", "lat": 35.1531696, "lng": 129.118666}, {"name": "廣安里-咖啡廳 Ancien 明太子麵包", "desc": "광안리 카페 앙시앙", "style": "#icon-1577-E65100", "lat": 35.1491827, "lng": 129.1135313}]}]};
+const SEED = {"title": "2026釜山五日", "updated": "", "layers": [{"name": "HOTAL", "places": [{"name": "馬格南南浦飯店", "desc": "매그넘남포호텔<br>Magnum Nampo Hotel", "style": "#icon-1602-000000", "lat": 35.098288, "lng": 129.027231}]}, {"name": "DAY 1 西面", "places": [{"name": "世界村馬鈴薯排骨湯", "desc": "누리마을감자탕 서면점", "style": "#icon-1899-0288D1", "lat": 35.152943, "lng": 129.0588293}]}, {"name": "DAY 2", "places": [{"name": "BIFF 廣場", "desc": "비프광장", "style": "#icon-1899-0288D1", "lat": 35.098243, "lng": 129.029212}, {"name": "國際市場", "desc": "국제시장", "style": "#icon-1899-0288D1", "lat": 35.1013575, "lng": 129.0281978}, {"name": "富平罐頭市場", "desc": "부평깡통시장", "style": "#icon-1899-0288D1", "lat": 35.101854, "lng": 129.0258719}, {"name": "光復路時尚街", "desc": "광복로문화패션거리", "style": "#icon-1899-0288D1", "lat": 35.0993125, "lng": 129.0314375}, {"name": "龍頭山公園", "desc": "용두산공원", "style": "#icon-1899-0288D1", "lat": 35.1006536, "lng": 129.0326226}, {"name": "釜山塔", "desc": "부산다이아몬드타워", "style": "#icon-1899-0288D1", "lat": 35.1011913, "lng": 129.0323697}, {"name": "札嘎其市場", "desc": "자갈치시장", "style": "#icon-1899-0288D1", "lat": 35.0966339, "lng": 129.0307965}]}, {"name": "DAY 3 影島", "places": [{"name": "ARTE MUSEUM Busan", "desc": "아르떼뮤지엄 부산", "style": "#icon-1899-0288D1", "lat": 35.0870682, "lng": 129.076373}, {"name": "影島海女村", "desc": "영도해녀촌", "style": "#icon-1899-0288D1", "lat": 35.0672442, "lng": 129.0660829}, {"name": "白淺灘文化村", "desc": "흰여울문화마을", "style": "#icon-1899-0288D1", "lat": 35.0782798, "lng": 129.0453198}, {"name": "Songdo Bay Station (Songdo Cable Car)", "desc": "송도해상케이블카 송도베이스테이션", "style": "#icon-1899-0288D1", "lat": 35.0763876, "lng": 129.0236199}, {"name": "岩南公園", "desc": "암남공원", "style": "#icon-1899-0288D1", "lat": 35.0608778, "lng": 129.0161047}]}, {"name": "DAY 4 海雲台/廣安里", "places": [{"name": "海雲臺地鐵站", "desc": "해운대해수욕장", "style": "#icon-1899-0288D1", "lat": 35.1639612, "lng": 129.1585317}, {"name": "海雲台醬蟹料理", "desc": "신사꽂게당 해운대점Haeundae Marinated Crab – Korean Gejang Restaurant", "style": "#icon-1577-E65100", "lat": 35.1597081, "lng": 129.1595155}, {"name": "青沙浦雙胞胎燈塔", "desc": "청사포 쌍둥이등대", "style": "#icon-1899-0288D1", "lat": 35.1593442, "lng": 129.1915503}, {"name": "尾浦", "desc": "미포", "style": "#icon-1899-0288D1", "lat": 35.1592786, "lng": 129.1699201}, {"name": "尾浦-老虎冰淇淋大福", "desc": "호랑이젤라떡", "style": "#icon-1577-E65100", "lat": 35.15849, "lng": 129.1711889}, {"name": "尾浦-大海鮑魚粥", "desc": "바다마루전복죽", "style": "#icon-1577-E65100", "lat": 35.1605788, "lng": 129.171241}, {"name": "廣安裏海灘", "desc": "광안리해수욕장", "style": "#icon-1899-0288D1", "lat": 35.1531696, "lng": 129.118666}, {"name": "廣安里-咖啡廳 Ancien 明太子麵包", "desc": "광안리 카페 앙시앙", "style": "#icon-1577-E65100", "lat": 35.1491827, "lng": 129.1135313}]}]};
 
 /* My Maps 說明欄沒寫韓文時，用這份對照表（可在 My Maps 說明欄寫韓文覆蓋） */
 const KO = {
-  'Magnum Nampo Hotel':'매그넘 남포 호텔','BIFF 廣場':'비프광장','國際市場':'국제시장','富平罐頭市場':'부평깡통시장',
-  '光復路時尚街':'광복로 패션거리','龍頭山公園':'용두산공원','釜山塔':'부산타워','札嘎其市場':'자갈치시장',
+  'Magnum Nampo Hotel':'매그넘남포호텔','BIFF 廣場':'비프광장','國際市場':'국제시장','富平罐頭市場':'부평깡통시장',
+  '光復路時尚街':'광복로문화패션거리','龍頭山公園':'용두산공원','釜山塔':'부산다이아몬드타워','札嘎其市場':'자갈치시장',
   'ARTE MUSEUM Busan':'아르떼뮤지엄 부산','白淺灘文化村':'흰여울문화마을','Songdo Bay Station (Songdo Cable Car)':'송도해상케이블카 송도베이스테이션',
   '岩南公園':'암남공원','海雲臺':'해운대해수욕장','青沙浦雙胞胎燈塔':'청사포 쌍둥이 등대','尾浦':'미포','廣安裏海灘':'광안리해수욕장'
 };
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let places = [], hotel = null, day = '全部', me = null, nearFirst = false, markers = {}, meMarker = null, watchId = null;
+let places = [], hotel = null, day = '全部', me = null, nearFirst = false, markers = {}, meMarker = null, watchId = null, lastDraw = null;
+const opened = new Set();
+const WALK_LIMIT = 15;   // 走路幾分鐘內建議走路
 
 function strip(html){ const d = document.createElement('div'); d.innerHTML = html || ''; return d.textContent.trim(); }
 function normalize(data){
@@ -171,10 +183,20 @@ function km(a, b){
   const s = Math.sin(dLat/2)**2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng/2)**2;
   return 2 * R * Math.asin(Math.sqrt(s));
 }
-function distText(p){
-  if (!me) return '';
-  const d = km(me, p), walk = Math.round(d * 1.3 / 4.5 * 60);
-  return d < 1 ? `約 ${Math.round(d*1000/10)*10} 公尺・走路約 ${Math.max(1,walk)} 分` : `約 ${d.toFixed(1)} 公里${walk <= 25 ? `・走路約 ${walk} 分` : ''}`;
+/* 估算：走路時速 4.5 公里、路線繞 1.3 倍；搭車市區均速 22 公里、繞 1.4 倍、加 3 分鐘等車 */
+function trip(p){
+  const d = km(me, p);
+  return { walk: Math.max(1, Math.round(d * 1.3 / 4.5 * 60)), car: Math.round(d * 1.4 / 22 * 60) + 3,
+    dist: d < 1 ? `${Math.round(d * 1000 / 10) * 10} 公尺` : `${d.toFixed(1)} 公里` };
+}
+function fmtMin(m){ return m < 60 ? `${m} 分` : `${Math.floor(m / 60)} 小時 ${m % 60} 分`; }
+function tripHtml(p){
+  if (!me) return '<div class="trip none">開啟定位後，這裡會顯示走路和搭車要多久</div>';
+  const t = trip(p), walkOk = t.walk <= WALK_LIMIT;
+  return `<div class="trip ${walkOk ? 'walk' : 'car'}">
+    <span>🚶 走路 ${fmtMin(t.walk)}</span><span>🚕 搭車 ${t.car} 分</span>
+    <span class="tag">${walkOk ? '建議走路' : '建議叫車'}</span>
+    <small style="flex-basis:100%">距離你約 ${t.dist}</small></div>`;
 }
 
 /* ---------- 地圖 ---------- */
@@ -229,14 +251,15 @@ function renderList(){
         <div>
           <h2 class="name">${esc(p.name)}</h2>
           <p class="meta">${p.ko ? `<span class="kr">${esc(p.ko)}</span>・` : ''}${esc(p.layer)}</p>
-          ${me ? `<span class="dist">${distText(p)}</span>` : ''}
         </div>
       </div>
-      <a class="btn uber" href="${uberUrl(p)}" target="_blank" rel="noopener">🚕 叫 Uber 去這裡</a>
-      <div class="row2">
+      ${tripHtml(p)}
+      <a class="btn uber ${me && trip(p).walk <= WALK_LIMIT ? 'soft' : ''}" href="${uberUrl(p)}" target="_blank" rel="noopener">🚕 叫 Uber 去這裡</a>
+      <div class="row2" ${opened.has(p.id) ? '' : 'hidden'}>
         <a class="btn sub" href="${gmapUrl(p)}" target="_blank" rel="noopener">Google 地圖</a>
         <button class="btn sub" type="button" data-ko="${p.id}">給司機看韓文</button>
       </div>
+      <button class="more" type="button" data-more="${p.id}" aria-expanded="${opened.has(p.id)}">${opened.has(p.id) ? '收起 ▲' : '更多：Google 地圖、給司機看韓文 ▼'}</button>
     </article>`).join('') : '<p class="empty">找不到這個地點，換個字試試</p>';
 }
 function renderAll(){ renderDays(); renderList(); drawMarkers(); }
@@ -252,27 +275,39 @@ $('#dClose').onclick = () => { $('#driver').hidden = true; };
 /* ---------- 事件 ---------- */
 $('#q').addEventListener('input', () => { renderList(); drawMarkers(); });
 $('#days').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; day = b.dataset.d; renderAll(); });
-$('#list').addEventListener('click', e => { const b = e.target.closest('[data-ko]'); if (b) showDriver(places.find(p => p.id === b.dataset.ko)); });
+$('#list').addEventListener('click', e => {
+  const k = e.target.closest('[data-ko]'); if (k) { showDriver(places.find(p => p.id === k.dataset.ko)); return; }
+  const m = e.target.closest('[data-more]'); if (!m) return;
+  const id = m.dataset.more, card = document.getElementById(id), open = !opened.has(id);
+  open ? opened.add(id) : opened.delete(id);
+  card.querySelector('.row2').hidden = !open;
+  m.setAttribute('aria-expanded', String(open));
+  m.textContent = open ? '收起 ▲' : '更多：Google 地圖、給司機看韓文 ▼';
+});
 $('#homeUber').onclick = () => { if (hotel) location.href = uberUrl(hotel); };
 $('#homeKo').onclick = () => { if (hotel) showDriver(hotel); };
 
-$('#locBtn').onclick = () => {
-  if (!navigator.geolocation) { alert('這支手機無法取得位置'); return; }
-  $('#locBtn').textContent = '📍 定位中…';
+/* ---------- 定位：打開網頁就自動開始，移動時更新 ---------- */
+function startLocate(){
+  if (!navigator.geolocation) { $('#locMsg').textContent = '這支手機無法取得位置'; return; }
+  $('#locMsg').textContent = '📍 正在取得你的位置…'; $('#locBtn').hidden = true;
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
   let first = true;
   watchId = navigator.geolocation.watchPosition(pos => {
     me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     if (!meMarker) meMarker = L.marker([me.lat, me.lng], { icon: L.divIcon({ className:'', html:'<div class="me"></div>', iconSize:[20,20], iconAnchor:[10,10] }), zIndexOffset:2000 }).addTo(map);
     else meMarker.setLatLng([me.lat, me.lng]);
-    $('#locBtn').textContent = '📍 已顯示我的位置'; $('#locBtn').setAttribute('aria-pressed', 'true');
+    $('#locMsg').textContent = '📍 已依你現在的位置計算路程'; $('#locBtn').hidden = false;
     if (first) { map.setView([me.lat, me.lng], 15); first = false; }
-    renderList();
-  }, () => { $('#locBtn').textContent = '📍 顯示我的位置'; alert('無法取得位置，請到手機設定允許瀏覽器使用定位。'); },
-  { enableHighAccuracy:true, maximumAge:15000, timeout:20000 });
-};
+    /* 移動超過 30 公尺才重新整理清單，避免畫面一直跳動 */
+    if (!lastDraw || km(lastDraw, me) > 0.03) { lastDraw = me; renderList(); }
+  }, err => {
+    $('#locBtn').hidden = false;
+    $('#locMsg').textContent = err.code === 1 ? '⚠ 沒有定位權限，請到手機設定允許後按「重新定位」' : '⚠ 暫時抓不到位置，可按「重新定位」再試';
+  }, { enableHighAccuracy:true, maximumAge:15000, timeout:20000 });
+}
+$('#locBtn').onclick = () => { lastDraw = null; startLocate(); };
 $('#nearBtn').onclick = () => {
-  if (!me) { $('#locBtn').click(); }
   nearFirst = !nearFirst; $('#nearBtn').setAttribute('aria-pressed', String(nearFirst)); renderList();
 };
 
@@ -323,6 +358,7 @@ if (SYNC_URL) {
     apply(data, `已同步 ${fmt(data.updated)}`);
   }).catch(() => { $('#sync').textContent = cached ? `離線・${fmt(cached.updated)}` : '離線・內建資料'; });
 }
+startLocate();
 </script>
 </body>
 </html>
