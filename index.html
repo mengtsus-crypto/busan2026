@@ -74,6 +74,8 @@ h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.02em}
 .locline button{margin-left:auto}
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:58px;border-radius:14px;font-size:20px;font-weight:700;text-decoration:none;border:0}
 .btn.uber{background:var(--uber);color:var(--uber-ink)}
+.extra{display:flex;flex-direction:column;gap:8px}
+.btn.book{min-height:50px;font-size:18px;background:var(--sea-soft);color:var(--sea);border:1.5px solid var(--sea)}
 .btn.uber.soft{background:transparent;color:var(--ink);border:2px solid var(--ink)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .btn.sub{min-height:50px;font-size:17px;font-weight:500;background:transparent;color:var(--ink);border:1.5px solid var(--line)}
@@ -156,10 +158,13 @@ function normalize(data){
     const desc = strip(p.desc);
     const gm = desc.match(/https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|(www\.)?google\.[a-z.]+\/maps)\S*/i);
     const plain = desc.replace(/https?:\/\/\S+/g, ' ');
+    /* 不是 Google 地圖、也不是 Uber 的網址 → 當作訂位連結 */
+    const bk = (desc.match(/https?:\/\/\S+/g) || []).find(u => !/google\.|goo\.gl|uber\.com/i.test(u));
     const m = plain.match(/[가-힣][가-힣0-9·\-\s]*[가-힣0-9]/);
     const item = { name:p.name, layer:L.name, lat:+p.lat, lng:+p.lng,
       ko: m ? m[0].trim() : (KO[p.name] || ''),
       gmap: gm ? gm[0] : '',
+      book: bk || '',
       food: /1577/.test(p.style || '') };
     if (/hotel|hotal|飯店|住宿/i.test(L.name) && !h) { h = item; return; }
     item.no = ++n; item.id = 'p' + n; out.push(item);
@@ -242,6 +247,7 @@ function renderDays(){
   const ds = ['全部', ...new Set(places.map(p => p.layer))];
   $('#days').innerHTML = ds.map(d => `<button class="pill" type="button" aria-pressed="${d === day}" data-d="${esc(d)}">${esc(d)}</button>`).join('');
 }
+function moreLabel(p){ return `更多：Google 地圖、給司機看韓文${p.book ? '、線上訂位' : ''} ▼`; }
 function renderList(){
   const L = visible();
   $('#list').innerHTML = L.length ? L.map(p => `
@@ -255,11 +261,14 @@ function renderList(){
       </div>
       ${tripHtml(p)}
       <a class="btn uber ${me && trip(p).walk <= WALK_LIMIT ? 'soft' : ''}" href="${uberUrl(p)}" target="_blank" rel="noopener">🚕 叫 Uber 去這裡</a>
-      <div class="row2" ${opened.has(p.id) ? '' : 'hidden'}>
-        <a class="btn sub" href="${gmapUrl(p)}" target="_blank" rel="noopener">Google 地圖</a>
-        <button class="btn sub" type="button" data-ko="${p.id}">給司機看韓文</button>
+      <div class="extra" ${opened.has(p.id) ? '' : 'hidden'}>
+        <div class="row2">
+          <a class="btn sub" href="${gmapUrl(p)}" target="_blank" rel="noopener">Google 地圖</a>
+          <button class="btn sub" type="button" data-ko="${p.id}">給司機看韓文</button>
+        </div>
+        ${p.book ? `<a class="btn book" href="${esc(p.book)}" target="_blank" rel="noopener">📅 線上訂位</a>` : ''}
       </div>
-      <button class="more" type="button" data-more="${p.id}" aria-expanded="${opened.has(p.id)}">${opened.has(p.id) ? '收起 ▲' : '更多：Google 地圖、給司機看韓文 ▼'}</button>
+      <button class="more" type="button" data-more="${p.id}" aria-expanded="${opened.has(p.id)}">${opened.has(p.id) ? '收起 ▲' : moreLabel(p)}</button>
     </article>`).join('') : '<p class="empty">找不到這個地點，換個字試試</p>';
 }
 function renderAll(){ renderDays(); renderList(); drawMarkers(); }
@@ -280,9 +289,9 @@ $('#list').addEventListener('click', e => {
   const m = e.target.closest('[data-more]'); if (!m) return;
   const id = m.dataset.more, card = document.getElementById(id), open = !opened.has(id);
   open ? opened.add(id) : opened.delete(id);
-  card.querySelector('.row2').hidden = !open;
+  card.querySelector('.extra').hidden = !open;
   m.setAttribute('aria-expanded', String(open));
-  m.textContent = open ? '收起 ▲' : '更多：Google 地圖、給司機看韓文 ▼';
+  m.textContent = open ? '收起 ▲' : moreLabel(places.find(p => p.id === id));
 });
 $('#homeUber').onclick = () => { if (hotel) location.href = uberUrl(hotel); };
 $('#homeKo').onclick = () => { if (hotel) showDriver(hotel); };
